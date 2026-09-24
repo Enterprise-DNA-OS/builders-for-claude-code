@@ -1,11 +1,66 @@
 [
   {
-    "name": "example",
-    "title": "TODO(author): the first document this industry must produce",
-    "for_each": "select gen_random_uuid() as id, 'Example' as name",
+    "name": "progress-claim",
+    "title": "Progress claim",
+    "for_each": "select c.claim_id as id, (c.ref || ' ' || c.job) as name from v_claims c order by c.claimed_on desc",
     "file": "name",
     "sections": [
-      { "title": "Details", "sql": "select 'replace me' as item, $1::text as record_id" }
+      {
+        "title": "The claim",
+        "note": "A payment claim under the Construction Contracts Act 2002. It states the amount, what it is for, and when it is due; the payer responds with payment or a payment schedule.",
+        "sql": "select c.ref as claim, c.job_ref as job, c.job as for_the_job, c.client as to_the_client, to_char(c.claimed_on, 'DD Month YYYY') as claimed, to_char(c.amount, 'FM$999,999,990') as amount_claimed, case when c.retention_held > 0 then to_char(c.retention_held, 'FM$999,999,990') else 'none' end as retention_held, to_char(c.due_on, 'DD Month YYYY') as payment_due, c.state from v_claims c where c.claim_id = $1"
+      },
+      {
+        "title": "The position on this contract",
+        "note": "Total claims never pass the contract value plus approved variations.",
+        "sql": "select to_char(j.contract_value, 'FM$999,999,990') as contract_value, case when j.approved_variations > 0 then to_char(j.approved_variations, 'FM$999,999,990') else 'none' end as approved_variations, to_char(j.revised_contract, 'FM$999,999,990') as revised_contract, to_char(j.claimed, 'FM$999,999,990') as claimed_to_date, to_char(j.paid, 'FM$999,999,990') as paid_to_date from v_jobs j join v_claims c on c.job_ref = j.ref where c.claim_id = $1"
+      },
+      {
+        "title": "Approved variations on this job",
+        "sql": "select v.ref, v.description, to_char(v.price, 'FM$999,999,990') as price, to_char(v.decided_on, 'YYYY-MM-DD') as approved_on, v.approved_by from v_variations v join v_claims c on c.job_ref = v.job_ref where c.claim_id = $1 and v.status = 'approved' order by v.decided_on"
+      }
+    ]
+  },
+  {
+    "name": "variation-letter",
+    "title": "Variation for approval",
+    "for_each": "select v.variation_id as id, (v.ref || ' ' || v.job) as name from v_variations v order by v.proposed_on desc",
+    "file": "name",
+    "sections": [
+      {
+        "title": "The variation",
+        "note": "No variation work starts, and none is claimable, until this is approved in writing.",
+        "sql": "select v.ref, v.job_ref as job, v.job as for_the_job, v.client as to_the_client, v.description, to_char(v.price, 'FM$999,999,990') as price, to_char(v.proposed_on, 'DD Month YYYY') as proposed, v.status, coalesce(v.approved_by, 'awaiting written approval') as approved_by from v_variations v where v.variation_id = $1"
+      },
+      {
+        "title": "What it does to the contract",
+        "sql": "select to_char(j.contract_value, 'FM$999,999,990') as contract_value, to_char(j.approved_variations, 'FM$999,999,990') as variations_approved_so_far, to_char(j.revised_contract + case when v.status = 'proposed' then v.price else 0 end, 'FM$999,999,990') as contract_if_approved from v_jobs j join v_variations v on v.job_ref = j.ref where v.variation_id = $1"
+      }
+    ]
+  },
+  {
+    "name": "job-cost-report",
+    "title": "Job cost report",
+    "for_each": "select j.job_id as id, (j.ref || ' ' || j.job) as name from v_jobs j where j.status in ('active', 'complete') order by j.ref",
+    "file": "name",
+    "sections": [
+      {
+        "title": "The job",
+        "sql": "select j.ref, j.job, j.client, coalesce(j.site_address, '') as site, j.job_type as type, j.status, to_char(j.revised_contract, 'FM$999,999,990') as contract, to_char(j.claimed, 'FM$999,999,990') as claimed, to_char(j.costs_actual, 'FM$999,999,990') as costs_to_date, case when j.committed > 0 then to_char(j.committed, 'FM$999,999,990') else 'none' end as committed, to_char(j.forecast_margin, 'FM$999,999,990') as forecast_margin from v_jobs j where j.job_id = $1"
+      },
+      {
+        "title": "Budget vs actual, line by line",
+        "note": "Committed is open purchase orders. A line marked OVER is a conversation this week, not a surprise in the final account.",
+        "sql": "select b.cost_code as code, b.line, to_char(b.budget, 'FM$999,999,990') as budget, to_char(b.actual, 'FM$999,999,990') as actual, case when b.committed > 0 then to_char(b.committed, 'FM$999,999,990') else '' end as committed, to_char(b.remaining, 'FM$999,999,990') as remaining, b.state from v_budget b where b.job_id = $1 order by b.cost_code"
+      },
+      {
+        "title": "Variations",
+        "sql": "select v.ref, v.description, to_char(v.price, 'FM$999,999,990') as price, v.status, coalesce(v.approved_by, '') as approved_by from v_variations v join v_jobs j on j.ref = v.job_ref where j.job_id = $1 order by v.proposed_on"
+      },
+      {
+        "title": "Progress claims",
+        "sql": "select c.ref, to_char(c.claimed_on, 'YYYY-MM-DD') as claimed, to_char(c.amount, 'FM$999,999,990') as amount, to_char(c.due_on, 'YYYY-MM-DD') as due, coalesce(to_char(c.paid_on, 'YYYY-MM-DD'), '') as paid, c.state from v_claims c join v_jobs j on j.ref = c.job_ref where j.job_id = $1 order by c.claimed_on"
+      }
     ]
   }
 ]

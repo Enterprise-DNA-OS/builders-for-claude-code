@@ -1,9 +1,9 @@
 {
-  "_": "Your business on every document and view. Change these and run `npm run docs` or `npm run view`.",
-  "business_name": "Your Business",
+  "_": "Your company on every claim, letter and report. Change these and run `npm run docs` or `npm run view`.",
+  "business_name": "Harbourline Builds Ltd (demo)",
   "logo_path": "",
-  "primary": "#6654f5",
-  "accent": "#ca5a8b",
+  "primary": "#1e4d6b",
+  "accent": "#c97a12",
   "ink": "#0b0c18",
   "paper": "#ffffff",
   "footer_line": "Prepared with Builders for Claude Code."

@@ -1,13 +1,54 @@
 [
   {
-    "name": "week",
-    "title": "This week",
-    "subtitle": "Builders for Claude Code: what needs attention, rendered by npm run view",
+    "name": "builders-board",
+    "title": "The builders board",
+    "subtitle": "Builders for Claude Code: what needs a decision, the pipeline, unpaid claims and this week's schedule. Rendered by npm run view.",
     "sections": [
       {
-        "title": "Needs attention",
-        "note": "TODO(author): point this at the industry's attention view (overdue, stuck, quiet).",
-        "sql": "select 'replace me' as item, 'TODO(author)' as why"
+        "title": "Needs a decision",
+        "note": "An overdue payment claim outranks everything: it is your money and the Act's clock is running. Then unapproved variations, uninsured subbies, blown budget lines and the quiet leaks.",
+        "sql": "select case reason when 'claim_overdue' then 'Payment claim OVERDUE' when 'variation_unapproved' then 'Variation not approved in writing' when 'insurance_expired' then 'Subbie insurance EXPIRED on site' when 'budget_over' then 'Budget line OVER' when 'retention_due' then 'Retention still held after handover' when 'quote_stale' then 'Quote going cold' when 'claim_gap' then 'Work done, nothing claimed' when 'po_aged' then 'Purchase order floating' when 'task_late' then 'Task late' when 'job_quiet' then 'Site diary silent' when 'insurance_expiring' then 'Subbie insurance expiring' else reason end as what, label as record, client as who, place as at, days, detail from v_attention order by case reason when 'claim_overdue' then 1 when 'variation_unapproved' then 2 when 'insurance_expired' then 3 when 'budget_over' then 4 when 'retention_due' then 5 when 'quote_stale' then 6 when 'claim_gap' then 7 when 'po_aged' then 8 when 'task_late' then 9 when 'job_quiet' then 10 else 11 end, days desc nulls last"
+      },
+      {
+        "title": "The pipeline",
+        "note": "A quote past 14 days without a decision is going cold. Ring them or lose it.",
+        "sql": "select ref, job, client, job_type as type, to_char(contract_value, 'FM$999,999,990') as quoted_at, to_char(quoted_on, 'YYYY-MM-DD') as quoted, days_since_quoted as days from v_jobs where status = 'quote' order by days_since_quoted desc"
+      },
+      {
+        "title": "Unpaid claims",
+        "note": "A served claim past its due date carries statutory remedies under the Construction Contracts Act. Chase it today.",
+        "sql": "select ref, job_ref as job, client, to_char(claimed_on, 'YYYY-MM-DD') as claimed, to_char(amount, 'FM$999,999,990') as amount, to_char(due_on, 'YYYY-MM-DD') as due, case when days_overdue > 0 then days_overdue::text else '' end as days_overdue, state from v_claims where status = 'served' order by days_overdue desc"
+      },
+      {
+        "title": "This week on site",
+        "note": "Every late task pushes the claim behind it.",
+        "sql": "select job_ref as job, task, coalesce(trade, '') as trade, coalesce(subbie, '') as subbie, to_char(starts_on, 'YYYY-MM-DD') as starts, to_char(ends_on, 'YYYY-MM-DD') as ends, state from v_tasks where status = 'planned' and starts_on <= current_date + 7 order by ends_on"
+      }
+    ]
+  },
+  {
+    "name": "money",
+    "title": "The money",
+    "subtitle": "Builders for Claude Code: margin by job, budget vs actual, variations and claims. Rendered by npm run view.",
+    "sections": [
+      {
+        "title": "Margin by job, worst first",
+        "note": "Contract plus approved variations, less actual costs and open purchase orders. The forecast, not the final.",
+        "sql": "select ref, job, job_type as type, to_char(revised_contract, 'FM$999,999,990') as contract, to_char(claimed, 'FM$999,999,990') as claimed, to_char(costs_actual, 'FM$999,999,990') as costs, case when committed > 0 then to_char(committed, 'FM$999,999,990') else '' end as committed, to_char(forecast_margin, 'FM$999,999,990') as margin, status from v_jobs where status in ('active','complete') order by case status when 'active' then 1 else 2 end, forecast_margin / nullif(revised_contract, 0)"
+      },
+      {
+        "title": "Budget vs actual, active jobs",
+        "note": "Committed is open purchase orders: money already promised that no invoice has landed for yet.",
+        "sql": "select job_ref as job, cost_code as code, line, to_char(budget, 'FM$999,999,990') as budget, to_char(actual, 'FM$999,999,990') as actual, case when committed > 0 then to_char(committed, 'FM$999,999,990') else '' end as committed, to_char(remaining, 'FM$999,999,990') as remaining, state from v_budget where job_status = 'active' order by job_ref, cost_code"
+      },
+      {
+        "title": "The variations register",
+        "note": "Only approved variations raise the contract ceiling. A proposed one is work someone may be doing for free.",
+        "sql": "select ref, job_ref as job, client, description, to_char(price, 'FM$999,999,990') as price, to_char(proposed_on, 'YYYY-MM-DD') as proposed, status, coalesce(approved_by, '') as approved_by from v_variations order by status, proposed_on"
+      },
+      {
+        "title": "Progress claims",
+        "sql": "select ref, job_ref as job, client, to_char(claimed_on, 'YYYY-MM-DD') as claimed, to_char(amount, 'FM$999,999,990') as amount, case when retention_held > 0 then to_char(retention_held, 'FM$999,999,990') else '' end as retention, to_char(due_on, 'YYYY-MM-DD') as due, coalesce(to_char(paid_on, 'YYYY-MM-DD'), '') as paid, state from v_claims order by claimed_on desc"
       }
     ]
   }
